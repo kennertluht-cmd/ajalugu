@@ -187,7 +187,6 @@
     </div>
     <div class="progress"><i id="progfill"></i></div>
     <div class="combo" id="combo"></div>
-    <div class="countdown" id="countdown">15</div>
     <span class="pilettag" id="pilettag" style="display:none;"></span>
     <div class="tag" id="qtag">—</div>
     <h2 class="question" id="question">…</h2>
@@ -710,23 +709,14 @@ function loadQuestion(){
     b.addEventListener("click",()=>answer(opt,b));
     box.appendChild(b);
   });
-  renderCombo(); startTimer();
+  renderCombo();
 }
 function renderCombo(){
   const c=el("combo");
   if(game.combo>=2){c.textContent=`KOMBO ×${game.combo}`;c.classList.add("show");}
   else c.classList.remove("show");
 }
-function startTimer(){
-  clearInterval(game.timer); game.timeLeft=TIME;
-  const cd=el("countdown"); cd.textContent=TIME; cd.classList.remove("low");
-  game.timer=setInterval(()=>{
-    game.timeLeft--;
-    cd.textContent=Math.max(0,game.timeLeft);
-    cd.classList.toggle("low", game.timeLeft<=5);
-    if(game.timeLeft<=0){ clearInterval(game.timer); answer(null,null); }
-  },1000);
-}
+function startTimer(){ /* ajalimiit eemaldatud */ }
 function answer(choice,btn){
   if(game.answered) return;
   game.answered=true; clearInterval(game.timer);
