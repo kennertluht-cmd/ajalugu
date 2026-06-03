@@ -95,6 +95,11 @@
   .result.ok{color:var(--good);} .result.no{color:var(--bad);}
   .next{margin-top:14px;display:none;}
   .next.show{display:block;}
+  .graderow{display:flex;gap:10px;margin-top:4px;}
+  .graderow .btn{margin-top:0;}
+  .gradeyes{background:var(--good);color:#06281a;}
+  .gradeyes:hover{background:#46d98a;}
+  #revealBtn{font-size:16px;}
   .dbhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
   .dbhead h2{margin:0;font-size:19px;}
   .link{background:none;border:0;color:var(--accent);cursor:pointer;font:inherit;font-size:14px;font-weight:700;}
@@ -146,15 +151,29 @@
     <button class="btn alt" id="dbBtn">Andmebaas / spikker</button>
   </section>
 
+  <!-- MODE: valikvastustega või ilma -->
+  <section class="panel" id="screenMode" style="display:none;">
+    <div class="dbhead">
+      <h2>Kuidas vastata?</h2>
+      <button class="link" id="modeBack">← tagasi</button>
+    </div>
+    <button class="btn" id="modeValik">Valikvastustega</button>
+    <div class="selcount" style="margin:6px 0 18px;">Vali õige vastus 4 valiku seast</div>
+    <button class="btn alt" id="modeIlma">Ilma valikvastusteta</button>
+    <div class="selcount" style="margin-top:6px;">Mõtle ise, siis kontrolli: „Teadsin" / „Ei teadnud"</div>
+  </section>
+
   <!-- SETUP: vali mida õppida -->
   <section class="panel" id="screenSetup" style="display:none;">
     <div class="dbhead">
       <h2>Mida õppida?</h2>
       <button class="link" id="setupBack">← tagasi</button>
     </div>
-    <div class="label">Raskusaste</div>
-    <div class="topics" id="diffSel"></div>
-    <div class="selcount" id="diffHint" style="margin-top:8px;"></div>
+    <div id="diffWrap">
+      <div class="label">Raskusaste</div>
+      <div class="topics" id="diffSel"></div>
+      <div class="selcount" id="diffHint" style="margin-top:8px;"></div>
+    </div>
     <div class="label" style="margin-top:16px;">Teemad</div>
     <div class="topics" id="topics"></div>
     <div class="selcount" id="selCount"></div>
@@ -612,15 +631,17 @@ const selectedTags=new Set(presentTags);
 const mistakeBank=new Map(); // q.q -> question (kõik tehtud vead, igal tasemel)
 const game={queue:[],idx:0,score:0,combo:0,bestCombo:0,correctCount:0,answered:false,timer:null,timeLeft:TIME,missed:[],_acc:0,lastOpts:{}};
 let difficulty="raskem";
+let answerMode="valik"; // "valik" = valikvastustega, "ilma" = õpikaardid
 const DIFFS=[["kerge","Kerge"],["raskem","Raskem"],["raske","Kõige raskem"]];
 
 function show(s){
   el("screenStart").style.display=s==="start"?"block":"none";
+  el("screenMode").style.display =s==="mode"?"block":"none";
   el("screenSetup").style.display=s==="setup"?"block":"none";
   el("screenDb").style.display   =s==="db"?"block":"none";
   el("screenPlay").style.display =s==="play"?"block":"none";
   el("screenEnd").style.display  =s==="end"?"block":"none";
-  if(s==="setup") updateBank();
+  if(s==="setup"){ updateBank(); el("diffWrap").style.display = answerMode==="ilma" ? "none":"block"; }
 }
 
 /* ----- setup: raskusaste + teemad + pilet + vigade pank ----- */
@@ -686,9 +707,8 @@ function startGame(opts){
   show("play"); loadQuestion();
 }
 function loadQuestion(){
-  game.answered=false;
+  game.answered=false; game.revealed=false;
   const q=game.queue[game.idx];
-  q._opts=shuffle([q.correct, ...pickByDiff(q.ranked, difficulty)]);
   const pt=el("pilettag");
   if(q.pilet){ pt.style.display="block"; pt.textContent="Pilet "+q.piletName; }
   else pt.style.display="none";
@@ -699,6 +719,8 @@ function loadQuestion(){
   el("result").className="result"; el("result").innerHTML="";
   el("nextBtn").className="next"; el("nextBtn").textContent="EDASI →";
   const box=el("opts"); box.className="opts"; box.innerHTML="";
+  if(answerMode==="ilma"){ renderRecall(q,box); renderCombo(); return; }
+  q._opts=shuffle([q.correct, ...pickByDiff(q.ranked, difficulty)]);
   q._opts.forEach((opt,i)=>{
     const m=meaningOf(opt);
     const b=document.createElement("button");
@@ -749,6 +771,46 @@ function answer(choice,btn){
   el("nextBtn").classList.add("show");
   if(game.idx>=game.queue.length-1) el("nextBtn").textContent="VAATA TULEMUST →";
   renderCombo();
+}
+/* ----- ilma valikvastusteta (õpikaardid) ----- */
+function renderRecall(q, box){
+  const b=document.createElement("button");
+  b.className="btn alt"; b.id="revealBtn"; b.textContent="Näita vastust";
+  b.onclick=()=>revealRecall(q,box);
+  box.appendChild(b);
+}
+function revealRecall(q, box){
+  if(game.revealed) return;
+  game.revealed=true;
+  box.className="opts revealed"; box.innerHTML="";
+  const m=meaningOf(q.correct);
+  const card=document.createElement("div");
+  card.className="opt correct";
+  card.innerHTML=`<span class="num">✓</span><span class="body"><span class="txt"></span>${m?'<span class="mean"></span>':''}</span>`;
+  card.querySelector(".txt").textContent=q.correct;
+  if(m) card.querySelector(".mean").textContent="→ "+m;
+  box.appendChild(card);
+  const g=document.createElement("div"); g.className="graderow";
+  const no=document.createElement("button"); no.className="btn alt gradeno"; no.textContent="Ei teadnud";
+  const yes=document.createElement("button"); yes.className="btn gradeyes"; yes.textContent="Teadsin";
+  no.onclick=()=>gradeRecall(false); yes.onclick=()=>gradeRecall(true);
+  g.appendChild(no); g.appendChild(yes);
+  box.appendChild(g);
+}
+function gradeRecall(ok){
+  if(game.answered) return;
+  game.answered=true;
+  const q=game.queue[game.idx];
+  if(ok){
+    game.combo++; game.bestCombo=Math.max(game.bestCombo,game.combo); game.correctCount++;
+    game.score+=100+(game.combo>=2?(game.combo-1)*25:0);
+    mistakeBank.delete(q.q); sfx(true); if(game.combo>=3) burst();
+  }else{
+    game.combo=0; game.missed.push(q); mistakeBank.set(q.q,q); sfx(false);
+  }
+  el("score").textContent=game.score;
+  el("progfill").style.width=((game.idx+1)/game.queue.length*100)+"%";
+  nextQuestion();
 }
 function nextQuestion(){
   if(!game.answered) return;
@@ -807,8 +869,11 @@ function loop(){ cx.clearRect(0,0,cv.width,cv.height);
   raf=parts.length?requestAnimationFrame(loop):null; }
 
 /* ----- events ----- */
-el("toSetupBtn").onclick=()=>{ show("setup"); };
-el("setupBack").onclick =()=>show("start");
+el("toSetupBtn").onclick=()=>{ show("mode"); };
+el("modeBack").onclick  =()=>show("start");
+el("modeValik").onclick =()=>{ answerMode="valik"; show("setup"); };
+el("modeIlma").onclick  =()=>{ answerMode="ilma"; show("setup"); };
+el("setupBack").onclick =()=>show("mode");
 el("playBtn").onclick   =()=>startGame();
 el("playPiletBtn").onclick=()=>{ const v=+el("piletSelect").value; if(v) startGame({pilet:v}); };
 el("piletSelect").onchange=()=>{ const v=+el("piletSelect").value; el("playPiletBtn").style.opacity=v?1:.45; };
@@ -824,15 +889,22 @@ el("dbBack").onclick    =()=>show("start");
 el("dbSearch").addEventListener("input",e=>renderDb(e.target.value));
 addEventListener("keydown",e=>{
   if(el("screenPlay").style.display!=="none"){
-    if(e.key==="Escape"){ clearInterval(game.timer); show("setup"); }
+    if(e.key==="Escape"){ show("setup"); }
+    else if(answerMode==="ilma"){
+      if(!game.revealed){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); const r=el("revealBtn"); if(r) r.click(); } }
+      else if(!game.answered){ if(e.key==="1"){ const n=el("opts").querySelector(".gradeno"); if(n) n.click(); }
+        else if(e.key==="2"){ const y=el("opts").querySelector(".gradeyes"); if(y) y.click(); } }
+    }
     else if(["1","2","3","4"].includes(e.key)&&!game.answered){const b=el("opts").children[+e.key-1];if(b)b.click();}
     else if((e.key==="Enter"||e.key===" ")&&game.answered){e.preventDefault();nextQuestion();}
   } else if(e.key==="Enter"){
-    if(el("screenStart").style.display!=="none") show("setup");
+    if(el("screenStart").style.display!=="none") show("mode");
     else if(el("screenSetup").style.display!=="none") startGame();
     else if(el("screenEnd").style.display!=="none") startGame(game.lastOpts);
   } else if(e.key==="Escape"){
-    if(el("screenDb").style.display!=="none"||el("screenSetup").style.display!=="none") show("start");
+    if(el("screenDb").style.display!=="none") show("start");
+    else if(el("screenSetup").style.display!=="none") show("mode");
+    else if(el("screenMode").style.display!=="none") show("start");
   }
 });
 
